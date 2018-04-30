@@ -1,7 +1,12 @@
-# install.packages("shinydashboard")
-# install.packages("data.table")
+#install.packages("shinydashboard")
+#install.packages("data.table")
+#intall.packages("dplyr")
 
-data1 = read.csv("/Users/bgelly/Documents/Folders/Coding/NYCDSA_Bootcamp/project1/Apr14SetTues1.csv")
+library(shinydashboard)
+library(data.table)
+library(dplyr)
+
+data1 = read.csv("/Users/bgelly/Documents/Folders/Coding/NYCDSA_Bootcamp/project1/shiny/Apr14Set.csv")
 dataf = data.frame(data1)
 
 rownames(dataf) <- NULL
