@@ -1,12 +1,17 @@
 library(shiny)
 library(ggmap)
 library(leaflet)
+library(gmapsdistance)
+library(lubridate)
+#install.packages("measurements")
+library(measurements)
+
 #install.packages("ggmap")
 
 ui <- shinyUI(dashboardPage(
   
   dashboardHeader(
-    title = "Uber Pickups"
+    title = "Uber Passenger Finder"
   ),
   
   dashboardSidebar(disable = TRUE),
@@ -17,10 +22,10 @@ ui <- shinyUI(dashboardPage(
            infoBoxOutput("avgBox")),
   fluidRow(
       column(width = 9,
-             box(width = NULL, solidHeader = TRUE,
+             box(width = NULL, solidHeader = TRUE, status = "warning", title = h3("Click on Map to Set Starting Location"),
                 leafletOutput("map")
               ),
-              box(width = NULL, status = "warning",
+              box(width = NULL, status = "primary", title = h3("Rides per Hour"), solidHeader = TRUE, collapsible = TRUE, collapsed=TRUE,
                 plotOutput("hist")
                     )
              ),
@@ -56,37 +61,7 @@ server <- shinyServer(function(input, output, session) {
   
   
   ## Observe mouse clicks and add circles
-  observeEvent(input$map_click, {
-    ## Get the click info
-    leafletProxy("map") %>%
-      clearShapes()
-    click <- input$map_click
-    clat <- click$lat
-    clng <- click$lng
-    address <- revgeocode(c(as.numeric(clng),as.numeric(clat)))
-    print(address)
-
-    leafletProxy('map') %>%
-      addCircles(lng=clng, lat=clat, group='circles',
-                 weight=1, radius=100, color='black', fillColor='black',
-                 popup=address, fillOpacity=0.5, opacity=1)
-    
-    
-    
-    
-    
-    
-    output$rphBox <- renderInfoBox({
-      infoBox(paste("Start: ", address),icon = icon("clock-o"))
-    })
-    
-    output$minBox <- renderInfoBox({
-      infoBox(paste("AVG."), icon = icon("hand-o-down"))
-    })
-    output$avgBox <- renderInfoBox(
-      infoBox(paste("AVG."),
-              icon = icon("calculator"), fill = TRUE))
-  })
+  
   
   observeEvent(c(input$slidertime, input$checkDay, input$sliderW),{
 
@@ -99,11 +74,77 @@ server <- shinyServer(function(input, output, session) {
               addCircleMarkers(lng = ~Lon, lat = ~Lat, clusterOptions = markerClusterOptions(showCoverageOnHover = TRUE, zoomToBoundsOnClick = TRUE,
                                                                spiderfyOnMaxZoom = FALSE, removeOutsideVisibleBounds = TRUE))
           output$hist <- renderPlot(
-            ggplot(filterData, aes(x = timeNum)) + geom_density(stat="count"))
+            ggplot(filterData, aes(x = timeNum)) + geom_density(stat="count") +labs(x = "Hour", y = "Ride Count") + theme(text = element_text(size=15)))
+          
+          observeEvent(input$map_click, {
+            ## Get the click info
+            leafletProxy("map") %>%
+              clearShapes()
+            click <- input$map_click
+            clat <- click$lat
+            clng <- click$lng
+            address <- revgeocode(c(as.numeric(clng),as.numeric(clat)))
+            #print(address)
+            
+            leafletProxy('map') %>%
+              addCircles(lng=clng, lat=clat, group='circles',
+                         weight=1, radius=200, color='red', fillColor='red',
+                         popup=address, fillOpacity=0.5, opacity=1)
+            
+            ####### FIND POINTS WITHIN A CERTAIN RADIUS #######
+            de = data.frame()
+            for(i in 1:dim(filterData)[1]){
+              Lat1 = filterData$Lat[i]
+              Lon1 = filterData$Lon[i]
+              
+              if(distm(c(clat, clng), c(Lat1, Lon1), fun = distHaversine)/1000*0.621371 <.25){
+                df = data.frame(Lat1, Lon1)
+                de = rbind(de, df)
+              }else{
+                next
+              }
+            }
+            
+            ####### FIND DATA POINT IN THIS DATA FRAME WITH THE MOST POINTS WITHIN A CERTAIN RADIUS #######          
+            
+            points = (cbind(de, X=rowSums(distm (de[,2:1], fun = distHaversine) / 1000 < .10)))
+            z = points[which.max(points$X),][1,1:2]
+            print(z)
+            address2 <- revgeocode(c(as.numeric(z[2]), as.numeric(z[1])))
+            print(address2)
+            #c((as.numeric(z[1])), (as.numeric(z[2])))
+            leafletProxy('map') %>%
+              clearMarkers() %>%
+              addAwesomeMarkers(lng=as.numeric(z[2]), lat=as.numeric(z[1]))
+            
+            
+            ####### CALC DRIVING TIME AND DISTANCE #######
+            origin = paste(z[[1]],z[[2]], sep = "+")
+            destination = paste(clat,clng, sep = "+")
+            results = gmapsdistance(origin = origin, 
+                                    destination = destination, 
+                                    mode = "driving")
+            
+            timeR = seconds_to_period(as.numeric(results[1]))
+            distR = round(conv_unit(as.numeric(results[2]), "m", "mi"),2)
+            print(timeR)
+            print(distR)
+            
+            ####### DISPLAY METRICS IN INFO BOXES #######
+            
+            output$rphBox <- renderInfoBox({
+              infoBox("Start: ", address ,icon = icon("map-pin"), fill = TRUE)
+            })
+            
+            output$minBox <- renderInfoBox({
+              infoBox("Go To: ", address2, icon = icon("hand-o-right"), fill = TRUE)
+            })
+            output$avgBox <- renderInfoBox(
+              infoBox("Time/Dist: ", paste(timeR, "/", distR, "mi"),
+                      icon = icon("clock-o"), fill = TRUE))
+          })
           
           })
-  
-  
 })
 
 shinyApp(ui=ui, server=server)
