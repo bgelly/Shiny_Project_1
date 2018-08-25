@@ -1,12 +1,29 @@
 library(shiny)
-library(ggmap)
+#install.packages("leaflet")
 library(leaflet)
+#install.packages("gmapsdistance")
 library(gmapsdistance)
+#install.packages("lubridate")
 library(lubridate)
 #install.packages("measurements")
 library(measurements)
-
+#install.packages('shinydashboard')
+library(shinydashboard)
 #install.packages("ggmap")
+library(ggmap)
+#install.packages('data.table')
+library(data.table)
+#install.packages('dplyr')
+library(dplyr)
+#install.packages('geosphere')
+library(geosphere)
+
+data1 = read.csv("/Users/bennettgelly/Documents/NYCDSA/Shiny_Project_1/data.csv")
+dataf = data.frame(data1)
+
+rownames(dataf) <- NULL
+# create variable with colnames as choice
+choice <- colnames(dataf)[-1]
 
 ui <- shinyUI(dashboardPage(
   ### ADD HEADER
